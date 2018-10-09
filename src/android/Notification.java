@@ -27,6 +27,9 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.Timer;
+import java.util.TimerTask;
+
 import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.app.AlertDialog.Builder;
@@ -88,6 +91,10 @@ public class Notification extends CordovaPlugin {
         }
         else if (action.equals("confirm")) {
             this.confirm(args.getString(0), args.getString(1), args.getJSONArray(2), callbackContext);
+            return true;
+        }
+        else if (action.equals("confirmWithTimeout")) {
+            this.confirmWithTimeout(args.getString(0), args.getString(1), args.getJSONArray(2), args.getInt(3), callbackContext);
             return true;
         }
         else if (action.equals("prompt")) {
@@ -263,6 +270,73 @@ public class Notification extends CordovaPlugin {
                 });
 
                 changeTextDirection(dlg);
+            };
+        };
+        this.cordova.getActivity().runOnUiThread(runnable);
+    }
+
+    // confirm with timer
+    public synchronized void confirmWithTimeout(final String message, final String title, final JSONArray buttonLabels, final int timeout,
+            final CallbackContext callbackContext) {
+        final CordovaInterface cordova = this.cordova;
+
+        Runnable runnable = new Runnable() {
+            public void run() {
+                AlertDialog.Builder dlg = createDialog(cordova); // new AlertDialog.Builder(cordova.getActivity(),
+                                                                 // AlertDialog.THEME_DEVICE_DEFAULT_LIGHT);
+                dlg.setMessage(message);
+                dlg.setTitle(title);
+                dlg.setCancelable(true);
+
+                // First button
+                if (buttonLabels.length() > 0) {
+                    try {
+                        dlg.setNegativeButton(buttonLabels.getString(0), new AlertDialog.OnClickListener() {
+                            public void onClick(DialogInterface dialog, int which) {
+                                dialog.dismiss();
+                                callbackContext.sendPluginResult(new PluginResult(PluginResult.Status.OK, 1));
+                            }
+                        });
+                    } catch (JSONException e) {
+                        LOG.d(LOG_TAG, "JSONException on first button.");
+                    }
+                }
+
+                // Second button
+                if (buttonLabels.length() > 1) {
+                    try {
+                        dlg.setNeutralButton(buttonLabels.getString(1), new AlertDialog.OnClickListener() {
+                            public void onClick(DialogInterface dialog, int which) {
+                                dialog.dismiss();
+                                callbackContext.sendPluginResult(new PluginResult(PluginResult.Status.OK, 2));
+                            }
+                        });
+                    } catch (JSONException e) {
+                        LOG.d(LOG_TAG, "JSONException on second button.");
+                    }
+                }
+
+                // Third button
+                if (buttonLabels.length() > 2) {
+                    try {
+                        dlg.setPositiveButton(buttonLabels.getString(2), new AlertDialog.OnClickListener() {
+                            public void onClick(DialogInterface dialog, int which) {
+                                dialog.dismiss();
+                                callbackContext.sendPluginResult(new PluginResult(PluginResult.Status.OK, 3));
+                            }
+                        });
+                    } catch (JSONException e) {
+                        LOG.d(LOG_TAG, "JSONException on third button.");
+                    }
+                }
+                dlg.setOnCancelListener(new AlertDialog.OnCancelListener() {
+                    public void onCancel(DialogInterface dialog) {
+                        dialog.dismiss();
+                        callbackContext.sendPluginResult(new PluginResult(PluginResult.Status.OK, 0));
+                    }
+                });
+
+                changeTextDirection(dlg, timeout, callbackContext);
             };
         };
         this.cordova.getActivity().runOnUiThread(runnable);
@@ -509,5 +583,27 @@ public class Notification extends CordovaPlugin {
             TextView messageview = (TextView)dialog.findViewById(android.R.id.message);
             messageview.setTextDirection(android.view.View.TEXT_DIRECTION_LOCALE);
         }
+    }
+
+    @SuppressLint("NewApi")
+    private void changeTextDirection(Builder dlg, int timeout /* miliseconds */, final CallbackContext callbackContext) {
+        int currentapiVersion = android.os.Build.VERSION.SDK_INT;
+        dlg.create();
+        final AlertDialog dialog = dlg.show();
+        if (currentapiVersion >= android.os.Build.VERSION_CODES.JELLY_BEAN_MR1) {
+            TextView messageview = (TextView) dialog.findViewById(android.R.id.message);
+            messageview.setTextDirection(android.view.View.TEXT_DIRECTION_LOCALE);
+        }
+
+       if(timeout != 0){
+            final Timer t = new Timer();
+            t.schedule(new TimerTask() {
+                public void run() {
+                    dialog.dismiss(); // when the task active then close the dialog
+                    callbackContext.sendPluginResult(new PluginResult(PluginResult.Status.OK, 4));
+                    t.cancel(); // also just top the timer thread, otherwise, you may receive a crash report
+                }
+            }, timeout); // after 2 second (or 2000 miliseconds), the task will be active.
+       }
     }
 }

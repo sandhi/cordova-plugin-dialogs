@@ -47,6 +47,21 @@ module.exports.confirm = window.navigator.notification.confirm = function (messa
     }, 0);
 };
 
+module.exports.confirmWithTimeout = window.navigator.notification.confirmWithTimeout = function (message, callback) {
+    // `notification.confirmWithTimeout` executes asynchronously
+    /* eslint-disable standard/no-callback-literal */
+    setTimeout(function () {
+        var result = window.confirmWithTimeout(message);
+        if (callback) {
+            if (result) {
+                callback(1); // OK
+            } else {
+                callback(2); // Cancel
+            }
+        }
+    }, 0);
+};
+
 module.exports.prompt = window.navigator.notification.prompt = function (message, callback, title, buttonLabels, defaultText) {
     // `notification.prompt` executes asynchronously
     setTimeout(function () {
